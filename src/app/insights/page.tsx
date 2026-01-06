@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { Search, List, BookOpen, TrendingUp, TrendingDown } from 'lucide-react'
@@ -21,7 +21,7 @@ const categoryLabels: Record<Category, string> = {
 
 type ViewMode = 'history' | 'ledger'
 
-export default function InsightsPage() {
+function InsightsContent() {
   const searchParams = useSearchParams()
   const [viewMode, setViewMode] = useState<ViewMode>('history')
   const [searchQuery, setSearchQuery] = useState('')
@@ -257,5 +257,13 @@ export default function InsightsPage() {
         </div>
       )}
     </div>
+  )
+}
+
+export default function InsightsPage() {
+  return (
+    <Suspense fallback={<div className="p-4 pt-6"><div className="h-6 w-24 bg-muted rounded animate-pulse" /></div>}>
+      <InsightsContent />
+    </Suspense>
   )
 }
