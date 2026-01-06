@@ -82,11 +82,11 @@
 }
 
 /* Safe area insets for iOS */
-.safe-area-pb {
+.safe-area-pb, .pb-safe {
   padding-bottom: env(safe-area-inset-bottom, 0);
 }
 
-.safe-area-pt {
+.safe-area-pt, .pt-safe {
   padding-top: env(safe-area-inset-top, 0);
 }
 

@@ -51,7 +51,7 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <main className="min-h-screen pb-20 max-w-md mx-auto">
+          <main className="min-h-screen pb-20 pt-safe max-w-md mx-auto">
             {children}
           </main>
           <Navigation />
