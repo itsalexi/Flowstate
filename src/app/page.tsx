@@ -4,18 +4,15 @@ import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Plus, Settings, X } from 'lucide-react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { ProgressRing } from '@/components/ProgressRing'
 import { QuickAddDrawer } from '@/components/QuickAddDrawer'
 import { TransactionList } from '@/components/TransactionList'
 import { Onboarding } from '@/components/Onboarding'
-import { PullToRefresh } from '@/components/PullToRefresh'
 import { useBudget } from '@/hooks/useBudget'
 import { useStore, currencySymbols } from '@/store/useStore'
 
 export default function Home() {
   const [showCalc, setShowCalc] = useState(false)
-  const router = useRouter()
   const { currency, hasCompletedOnboarding } = useStore()
   const symbol = currencySymbols[currency]
   const { 
@@ -46,8 +43,7 @@ export default function Home() {
   }
 
   return (
-    <PullToRefresh onRefresh={() => router.refresh()}>
-      <div className="p-4 space-y-4">
+    <div className="p-4 space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between pt-2">
         <div>
@@ -298,7 +294,6 @@ export default function Home() {
           <TransactionList transactions={lastWeekTransactions.slice(0, 5)} showDate compact />
         </div>
       )}
-      </div>
-    </PullToRefresh>
+    </div>
   )
 }
