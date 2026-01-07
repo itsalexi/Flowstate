@@ -47,10 +47,9 @@ interface EditTransactionDrawerProps {
   transaction: Transaction | null
   open: boolean
   onOpenChange: (open: boolean) => void
-  onDelete?: (tx: Transaction) => void
 }
 
-export function EditTransactionDrawer({ transaction, open, onOpenChange, onDelete }: EditTransactionDrawerProps) {
+export function EditTransactionDrawer({ transaction, open, onOpenChange }: EditTransactionDrawerProps) {
   const [amount, setAmount] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<Category>('food')
   const [note, setNote] = useState('')

@@ -2,69 +2,52 @@
 
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, Settings, ArrowRight, X } from 'lucide-react'
+import { Plus, Settings, X } from 'lucide-react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { ProgressRing } from '@/components/ProgressRing'
 import { QuickAddDrawer } from '@/components/QuickAddDrawer'
 import { TransactionList } from '@/components/TransactionList'
+import { Onboarding } from '@/components/Onboarding'
+import { PullToRefresh } from '@/components/PullToRefresh'
 import { useBudget } from '@/hooks/useBudget'
 import { useStore, currencySymbols } from '@/store/useStore'
-import { Button } from '@/components/ui/button'
 
 export default function Home() {
   const [showCalc, setShowCalc] = useState(false)
-  const { currency } = useStore()
+  const router = useRouter()
+  const { currency, hasCompletedOnboarding } = useStore()
   const symbol = currencySymbols[currency]
   const { 
     fixedNet,
+    spendableMonthlyBudget,
+    baseWeeklyBucket,
     weeklyBucket,
-    baseDailyTarget,
+    adjustedDailyTarget,
     weeklyRemaining,
     monthlyRemaining,
     todayTransactions,
     thisWeekTransactions,
+    lastWeekTransactions,
     todaySpent,
-    thisMonthSpent,
     daysLeftInWeek,
     daysLeftInMonth,
     isSpendDay,
-    totalSpendDaysPerWeek,
-    hasSetup 
+    remainingSpendDays,
+    savingsRate,
+    targetMonthlySavings,
+    totalDebtFromPastWeeks,
+    debtPerWeek,
+    currentWeekNum,
   } = useBudget()
 
-  if (!hasSetup) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[80vh] p-6 text-center">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="space-y-6"
-        >
-          <motion.div 
-            whileTap={{ scale: 0.95 }}
-            className="w-16 h-16 mx-auto rounded-xl bg-muted flex items-center justify-center"
-          >
-            <Settings className="w-8 h-8 text-muted-foreground" />
-          </motion.div>
-          <div className="space-y-2">
-            <h1 className="text-xl font-semibold tracking-tight">Welcome to FlowState</h1>
-            <p className="text-muted-foreground text-sm max-w-xs">
-              Set up your income and recurring expenses to start tracking your budget.
-            </p>
-          </div>
-          <Link href="/vault">
-            <Button className="mt-2">
-              Set Up Your Vault
-              <ArrowRight className="w-4 h-4 ml-2" />
-            </Button>
-          </Link>
-        </motion.div>
-      </div>
-    )
+  if (!hasCompletedOnboarding) {
+    return <Onboarding />
   }
 
   return (
-    <div className="p-4 space-y-4">
+    <PullToRefresh onRefresh={() => router.refresh()}>
+      <div className="p-4 space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between pt-2">
         <div>
@@ -98,7 +81,7 @@ export default function Home() {
           onClick={() => setShowCalc(true)}
         >
           <ProgressRing 
-            progress={baseDailyTarget > 0 ? (todaySpent / baseDailyTarget) * 100 : 0} 
+            progress={adjustedDailyTarget > 0 ? (todaySpent / adjustedDailyTarget) * 100 : 0} 
             size={180} 
             strokeWidth={10} 
           />
@@ -106,9 +89,9 @@ export default function Home() {
             {isSpendDay ? (
               // Spend day - show daily target
               (() => {
-                const todayRemaining = baseDailyTarget - todaySpent
+                const todayRemaining = adjustedDailyTarget - todaySpent
                 const isOverBudget = todayRemaining < 0
-                const percentUsed = baseDailyTarget > 0 ? (todaySpent / baseDailyTarget) * 100 : 0
+                const percentUsed = adjustedDailyTarget > 0 ? (todaySpent / adjustedDailyTarget) * 100 : 0
                 
                 return (
                   <>
@@ -180,28 +163,54 @@ export default function Home() {
                 </button>
               </div>
               <div className="space-y-2 text-sm">
-                <p className="text-xs text-muted-foreground">Your monthly variable budget</p>
+                <p className="text-xs text-muted-foreground">Your monthly budget</p>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">After fixed expenses</span>
                   <span className="font-medium tabular-nums">{symbol}{fixedNet.toFixed(0)}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">− Spent this month</span>
-                  <span className="font-medium tabular-nums text-destructive">−{symbol}{thisMonthSpent.toFixed(0)}</span>
-                </div>
+                {savingsRate > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">− {savingsRate}% savings target</span>
+                    <span className="font-medium tabular-nums text-primary">−{symbol}{targetMonthlySavings.toFixed(0)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between border-t border-border pt-2">
-                  <span className="font-medium">Monthly remaining</span>
-                  <span className="font-medium tabular-nums">{symbol}{monthlyRemaining.toFixed(0)}</span>
+                  <span className="font-medium">Spendable</span>
+                  <span className="font-medium tabular-nums">{symbol}{spendableMonthlyBudget.toFixed(0)}</span>
                 </div>
                 
-                <p className="text-xs text-muted-foreground pt-2">Divided into your week</p>
+                <p className="text-xs text-muted-foreground pt-2">Divided into 4 weeks</p>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">÷ {Math.ceil(daysLeftInMonth / 7)} weeks left</span>
-                  <span className="font-medium tabular-nums">{symbol}{weeklyBucket.toFixed(0)}/wk</span>
+                  <span className="text-muted-foreground">÷ 4 weeks</span>
+                  <span className="font-medium tabular-nums">{symbol}{baseWeeklyBucket.toFixed(0)}/wk</span>
+                </div>
+                
+                {totalDebtFromPastWeeks > 0 && (
+                  <>
+                    <div className="flex justify-between text-destructive">
+                      <span>− Overspent (past weeks)</span>
+                      <span className="font-medium tabular-nums">−{symbol}{totalDebtFromPastWeeks.toFixed(0)}</span>
+                    </div>
+                    <div className="flex justify-between text-destructive">
+                      <span>− Debt split across remaining weeks</span>
+                      <span className="font-medium tabular-nums">−{symbol}{debtPerWeek.toFixed(0)}/wk</span>
+                    </div>
+                  </>
+                )}
+                
+                <div className="flex justify-between border-t border-border pt-2">
+                  <span className="font-medium">Week {currentWeekNum} budget</span>
+                  <span className="font-medium tabular-nums">{symbol}{weeklyBucket.toFixed(0)}</span>
+                </div>
+                
+                <p className="text-xs text-muted-foreground pt-2">Today&apos;s budget</p>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Week remaining</span>
+                  <span className="font-medium tabular-nums">{symbol}{weeklyRemaining.toFixed(0)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">÷ {totalSpendDaysPerWeek} spend days</span>
-                  <span className="font-medium tabular-nums">{symbol}{baseDailyTarget.toFixed(0)}/day</span>
+                  <span className="text-muted-foreground">÷ {remainingSpendDays} spend days left</span>
+                  <span className="font-medium tabular-nums">{symbol}{adjustedDailyTarget.toFixed(0)}/day</span>
                 </div>
                 
                 <div className="border-t border-border pt-2 mt-2 flex justify-between">
@@ -210,8 +219,8 @@ export default function Home() {
                 </div>
                 <div className="flex justify-between text-base">
                   <span className="font-medium">You can spend</span>
-                  <span className={`font-bold tabular-nums ${baseDailyTarget - todaySpent < 0 ? 'text-destructive' : 'text-primary'}`}>
-                    {symbol}{(baseDailyTarget - todaySpent).toFixed(0)}
+                  <span className={`font-bold tabular-nums ${adjustedDailyTarget - todaySpent < 0 ? 'text-destructive' : 'text-primary'}`}>
+                    {symbol}{(adjustedDailyTarget - todaySpent).toFixed(0)}
                   </span>
                 </div>
               </div>
@@ -281,6 +290,15 @@ export default function Home() {
           />
         </div>
       )}
-    </div>
+
+      {/* Last Week Transactions */}
+      {lastWeekTransactions.length > 0 && (
+        <div className="space-y-2">
+          <h2 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Last Week</h2>
+          <TransactionList transactions={lastWeekTransactions.slice(0, 5)} showDate compact />
+        </div>
+      )}
+      </div>
+    </PullToRefresh>
   )
 }

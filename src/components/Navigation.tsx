@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Home, Vault, BarChart3 } from 'lucide-react'
+import { useStore } from '@/store/useStore'
 
 const navItems = [
   { href: '/', icon: Home, label: 'Home' },
@@ -12,6 +13,9 @@ const navItems = [
 
 export function Navigation() {
   const pathname = usePathname()
+  const { hasCompletedOnboarding } = useStore()
+
+  if (!hasCompletedOnboarding) return null
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-md border-t border-border safe-area-pb">

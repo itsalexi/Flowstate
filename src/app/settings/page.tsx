@@ -1,20 +1,30 @@
 'use client'
 
+import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { ChevronLeft, Sun, Moon } from 'lucide-react'
+import { ChevronLeft, Sun, Moon, RotateCcw } from 'lucide-react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useTheme } from 'next-themes'
 import { useStore, Currency, currencySymbols, DayOfWeek, dayNames } from '@/store/useStore'
-import { countSpendDays } from '@/hooks/useBudget'
+import { countSpendDays, useBudget } from '@/hooks/useBudget'
+import { PiggyBank } from 'lucide-react'
 
 export default function SettingsPage() {
+  const router = useRouter()
   const { theme, setTheme } = useTheme()
   const { 
     currency, 
     setCurrency, 
     spendDays,
     toggleSpendDay,
+    resetAllData,
+    savingsRate,
+    setSavingsRate,
   } = useStore()
+  const { spendableMonthlyBudget } = useBudget()
+  const symbol = currencySymbols[currency]
+  const [showResetConfirm, setShowResetConfirm] = useState(false)
 
   const totalSpendDays = countSpendDays(spendDays)
 
@@ -59,6 +69,41 @@ export default function SettingsPage() {
         <p className="text-[10px] text-muted-foreground text-center">
           Your weekly budget is divided across these days
         </p>
+      </section>
+
+      {/* Savings Rate */}
+      <section className="space-y-3">
+        <div>
+          <h2 className="font-medium">Savings Target</h2>
+          <p className="text-xs text-muted-foreground">
+            Set aside a percentage of your budget as savings
+          </p>
+        </div>
+        <div className="p-4 rounded-lg border border-border bg-card">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <PiggyBank className="w-5 h-5 text-primary" />
+              <span className="font-medium">{savingsRate}%</span>
+            </div>
+            <span className="text-sm text-muted-foreground">
+              {symbol}{(spendableMonthlyBudget / (1 - savingsRate/100) * savingsRate / 100).toFixed(0)}/mo
+            </span>
+          </div>
+          <input
+            type="range"
+            min="0"
+            max="50"
+            step="5"
+            value={savingsRate}
+            onChange={(e) => setSavingsRate(parseInt(e.target.value))}
+            className="w-full h-2 bg-muted rounded-full appearance-none cursor-pointer accent-primary"
+          />
+          <div className="flex justify-between text-xs text-muted-foreground mt-2">
+            <span>0%</span>
+            <span>25%</span>
+            <span>50%</span>
+          </div>
+        </div>
       </section>
 
       {/* Currency */}
@@ -113,6 +158,55 @@ export default function SettingsPage() {
             />
           </div>
         </motion.button>
+      </section>
+
+      {/* Reset */}
+      <section className="space-y-3">
+        <h2 className="font-medium text-destructive">Danger Zone</h2>
+        {!showResetConfirm ? (
+          <motion.button
+            whileTap={{ scale: 0.98 }}
+            onClick={() => setShowResetConfirm(true)}
+            className="w-full flex items-center justify-between p-3 rounded-lg border border-destructive/30 bg-destructive/5"
+          >
+            <div className="flex items-center gap-3">
+              <RotateCcw className="w-5 h-5 text-destructive" />
+              <div className="text-left">
+                <div className="font-medium text-sm text-destructive">Reset All Data</div>
+                <div className="text-xs text-muted-foreground">
+                  Delete all transactions and settings
+                </div>
+              </div>
+            </div>
+          </motion.button>
+        ) : (
+          <div className="p-4 rounded-lg border border-destructive bg-destructive/10 space-y-3">
+            <p className="text-sm font-medium text-destructive">Are you sure?</p>
+            <p className="text-xs text-muted-foreground">
+              This will delete all your data and restart the onboarding process. This cannot be undone.
+            </p>
+            <div className="flex gap-2">
+              <motion.button
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setShowResetConfirm(false)}
+                className="flex-1 py-2 px-3 rounded-lg border border-border bg-card text-sm font-medium"
+              >
+                Cancel
+              </motion.button>
+              <motion.button
+                whileTap={{ scale: 0.95 }}
+                onClick={() => {
+                  resetAllData()
+                  setShowResetConfirm(false)
+                  router.replace('/')
+                }}
+                className="flex-1 py-2 px-3 rounded-lg bg-destructive text-destructive-foreground text-sm font-medium"
+              >
+                Reset Everything
+              </motion.button>
+            </div>
+          </div>
+        )}
       </section>
 
       {/* Info */}

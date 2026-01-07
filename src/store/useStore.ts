@@ -61,6 +61,14 @@ export interface SavingsEntry {
   date: string // ISO string when it was banked
 }
 
+export interface SavingsGoal {
+  id: string
+  name: string
+  targetAmount: number
+  currentAmount: number
+  createdAt: string
+}
+
 export interface MonthlyRecord {
   id: string
   month: string // YYYY-MM format
@@ -86,10 +94,13 @@ interface FlowStateStore {
   recurringIncome: RecurringItem[]
   recurringExpenses: RecurringItem[]
   savings: SavingsEntry[]
+  savingsGoals: SavingsGoal[]
   currency: Currency
   quickExpenses: QuickExpense[]
   spendDays: SpendDays // Which days of the week the user plans to spend
   monthlyRecords: MonthlyRecord[] // Historical monthly data
+  savingsRate: number // 0-100 percentage of budget to save
+  hasCompletedOnboarding: boolean
 
   // Actions
   addTransaction: (tx: Omit<Transaction, 'id'>) => void
@@ -107,10 +118,16 @@ interface FlowStateStore {
   deleteRecurringExpense: (id: string) => void
   
   addSavingsEntry: (entry: Omit<SavingsEntry, 'id'>) => void
+  withdrawSavings: (amount: number) => void
+  
+  addSavingsGoal: (goal: Omit<SavingsGoal, 'id' | 'currentAmount' | 'createdAt'>) => void
+  updateSavingsGoal: (id: string, amount: number) => void
+  deleteSavingsGoal: (id: string) => void
   
   setCurrency: (currency: Currency) => void
   setSpendDays: (days: SpendDays) => void
   toggleSpendDay: (day: DayOfWeek) => void
+  setSavingsRate: (rate: number) => void
   
   addMonthlyRecord: (record: Omit<MonthlyRecord, 'id'>) => void
   
@@ -118,6 +135,9 @@ interface FlowStateStore {
   incrementQuickExpenseUsage: (id: string) => void
   toggleFavoriteQuickExpense: (id: string) => void
   deleteQuickExpense: (id: string) => void
+  
+  completeOnboarding: () => void
+  resetAllData: () => void
 }
 
 const generateId = () => Math.random().toString(36).substring(2, 15)
@@ -129,11 +149,14 @@ export const useStore = create<FlowStateStore>()(
       recurringIncome: [],
       recurringExpenses: [],
       savings: [],
+      savingsGoals: [],
       currency: 'PHP' as Currency,
       quickExpenses: [],
       // Default: Mon-Sat (school days)
       spendDays: { 0: false, 1: true, 2: true, 3: true, 4: true, 5: true, 6: true } as SpendDays,
       monthlyRecords: [],
+      savingsRate: 0,
+      hasCompletedOnboarding: false,
 
       addTransaction: (tx) =>
         set((state) => ({
@@ -208,6 +231,38 @@ export const useStore = create<FlowStateStore>()(
           savings: [{ ...entry, id: generateId() }, ...state.savings],
         })),
 
+      withdrawSavings: (amount) =>
+        set((state) => ({
+          savings: [{
+            id: generateId(),
+            weekStart: new Date().toISOString(),
+            amount: -amount,
+            date: new Date().toISOString(),
+          }, ...state.savings],
+        })),
+
+      addSavingsGoal: (goal) =>
+        set((state) => ({
+          savingsGoals: [{
+            ...goal,
+            id: generateId(),
+            currentAmount: 0,
+            createdAt: new Date().toISOString(),
+          }, ...state.savingsGoals],
+        })),
+
+      updateSavingsGoal: (id, amount) =>
+        set((state) => ({
+          savingsGoals: state.savingsGoals.map((g) =>
+            g.id === id ? { ...g, currentAmount: g.currentAmount + amount } : g
+          ),
+        })),
+
+      deleteSavingsGoal: (id) =>
+        set((state) => ({
+          savingsGoals: state.savingsGoals.filter((g) => g.id !== id),
+        })),
+
       setCurrency: (currency) =>
         set({ currency }),
 
@@ -218,6 +273,9 @@ export const useStore = create<FlowStateStore>()(
         set((state) => ({
           spendDays: { ...state.spendDays, [day]: !state.spendDays[day] },
         })),
+
+      setSavingsRate: (rate) =>
+        set({ savingsRate: Math.max(0, Math.min(100, rate)) }),
 
       addMonthlyRecord: (record) =>
         set((state) => ({
@@ -250,6 +308,24 @@ export const useStore = create<FlowStateStore>()(
         set((state) => ({
           quickExpenses: state.quickExpenses.filter((qe) => qe.id !== id),
         })),
+
+      completeOnboarding: () =>
+        set({ hasCompletedOnboarding: true }),
+
+      resetAllData: () =>
+        set({
+          transactions: [],
+          recurringIncome: [],
+          recurringExpenses: [],
+          savings: [],
+          savingsGoals: [],
+          currency: 'PHP' as Currency,
+          quickExpenses: [],
+          spendDays: { 0: false, 1: true, 2: true, 3: true, 4: true, 5: true, 6: true } as SpendDays,
+          monthlyRecords: [],
+          savingsRate: 0,
+          hasCompletedOnboarding: false,
+        }),
     }),
     { name: 'flowstate-storage' }
   )

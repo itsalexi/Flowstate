@@ -2,10 +2,12 @@
 
 import { useState, useMemo, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { Search, List, BookOpen, TrendingUp, TrendingDown } from 'lucide-react'
+import { Search, List, BookOpen } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { TransactionList } from '@/components/TransactionList'
+import { PullToRefresh } from '@/components/PullToRefresh'
 import { useStore, Category, currencySymbols } from '@/store/useStore'
 import { useBudget, groupTransactionsByWeek } from '@/hooks/useBudget'
 
@@ -22,10 +24,13 @@ const categoryLabels: Record<Category, string> = {
 type ViewMode = 'history' | 'ledger'
 
 function InsightsContent() {
+  const router = useRouter()
   const searchParams = useSearchParams()
   const [viewMode, setViewMode] = useState<ViewMode>('history')
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<Category | 'all'>('all')
+  const [ledgerView, setLedgerView] = useState<'months' | 'weeks' | 'week_detail'>('months')
+  const [selectedWeekNum, setSelectedWeekNum] = useState<number | null>(null)
 
   useEffect(() => {
     const view = searchParams.get('view')
@@ -38,11 +43,9 @@ function InsightsContent() {
   const symbol = currencySymbols[currency]
   const { 
     thisMonthSpent,
-    fixedNet,
+    budgetWeeks,
+    savedSoFar,
   } = useBudget()
-
-  // Calculate total lifetime savings
-  const totalLifetimeSaved = monthlyRecords.reduce((sum, r) => sum + r.savedAmount, 0)
 
   // History calculations
   const filteredTransactions = useMemo(() => {
@@ -67,11 +70,9 @@ function InsightsContent() {
 
   const totalSpent = filteredTransactions.reduce((sum, tx) => sum + Math.max(0, tx.amount), 0)
 
-  // Current month buffer (what we've saved so far this month)
-  const currentMonthBuffer = fixedNet - thisMonthSpent
-
   return (
-    <div className="p-4 space-y-4">
+    <PullToRefresh onRefresh={() => router.refresh()}>
+      <div className="p-4 space-y-4">
       <div className="flex items-center justify-between pt-2">
         <h1 className="text-lg font-semibold tracking-tight">Insights</h1>
         
@@ -188,75 +189,129 @@ function InsightsContent() {
 
       {viewMode === 'ledger' && (
         <div className="space-y-4">
-          {/* Current Month Progress */}
-          <div className={`p-4 rounded-lg border ${
-            currentMonthBuffer >= 0 
-              ? 'border-primary/20 bg-primary/5' 
-              : 'border-destructive/20 bg-destructive/5'
-          }`}>
-            <div className="flex items-center gap-2 mb-2">
-              {currentMonthBuffer >= 0 ? (
-                <TrendingUp className="w-4 h-4 text-primary" />
-              ) : (
-                <TrendingDown className="w-4 h-4 text-destructive" />
-              )}
-              <span className="text-sm font-medium">This Month</span>
-            </div>
-            <div className="space-y-1 text-sm">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Budget</span>
-                <span className="tabular-nums">{symbol}{fixedNet.toFixed(0)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Spent</span>
-                <span className="tabular-nums text-destructive">−{symbol}{thisMonthSpent.toFixed(0)}</span>
-              </div>
-              <div className="flex justify-between border-t border-border pt-1 mt-1">
-                <span className="font-medium">{currentMonthBuffer >= 0 ? 'Saved so far' : 'Over budget'}</span>
-                <span className={`font-bold tabular-nums ${currentMonthBuffer >= 0 ? 'text-primary' : 'text-destructive'}`}>
-                  {currentMonthBuffer >= 0 ? '+' : ''}{symbol}{currentMonthBuffer.toFixed(0)}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Total Lifetime Saved */}
-          <div className="p-4 rounded-lg border border-border bg-card">
-            <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Lifetime Saved</div>
-            <div className="text-2xl font-bold tabular-nums text-primary">
-              {symbol}{totalLifetimeSaved.toFixed(0)}
-            </div>
-          </div>
-
-          {/* Past Months */}
-          {monthlyRecords.length > 0 && (
-            <div className="space-y-2">
-              <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Past Months</h3>
-              {monthlyRecords.map((record) => (
-                <div key={record.id} className="p-3 rounded-lg border border-border bg-card">
-                  <div className="flex justify-between items-center">
-                    <span className="font-medium">{record.month}</span>
-                    <span className={`font-semibold tabular-nums ${record.savedAmount >= 0 ? 'text-primary' : 'text-destructive'}`}>
-                      {record.savedAmount >= 0 ? '+' : ''}{symbol}{record.savedAmount.toFixed(0)}
+          {ledgerView === 'months' && (
+            <>
+              <div className="p-4 rounded-lg border border-border bg-card">
+                <div className="text-sm font-medium mb-3">This Month (so far)</div>
+                <motion.button
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => {
+                    setLedgerView('weeks')
+                    setSelectedWeekNum(null)
+                  }}
+                  className="w-full text-left p-3 rounded-lg border border-border bg-muted/30"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium">Net saved</span>
+                    <span className={`font-bold tabular-nums ${savedSoFar >= 0 ? 'text-primary' : 'text-destructive'}`}>
+                      {savedSoFar >= 0 ? '+' : ''}{symbol}{savedSoFar.toFixed(0)}
                     </span>
                   </div>
-                  <div className="flex gap-4 mt-1 text-xs text-muted-foreground">
-                    <span>Income: {symbol}{record.income.toFixed(0)}</span>
-                    <span>Spent: {symbol}{record.variableExpenses.toFixed(0)}</span>
+                  <div className="flex items-center justify-between text-xs text-muted-foreground mt-1">
+                    <span>Spent: {symbol}{thisMonthSpent.toFixed(0)}</span>
+                    <span>Tap to view weeks</span>
                   </div>
+                </motion.button>
+              </div>
+
+              {monthlyRecords.length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Past Months</h3>
+                  {monthlyRecords.map((record) => (
+                    <div key={record.id} className="p-3 rounded-lg border border-border bg-card">
+                      <div className="flex justify-between items-center">
+                        <span className="font-medium">{record.month}</span>
+                        <span className={`font-semibold tabular-nums ${record.savedAmount >= 0 ? 'text-primary' : 'text-destructive'}`}>
+                          {record.savedAmount >= 0 ? '+' : ''}{symbol}{record.savedAmount.toFixed(0)}
+                        </span>
+                      </div>
+                      <div className="flex gap-4 mt-1 text-xs text-muted-foreground">
+                        <span>Income: {symbol}{record.income.toFixed(0)}</span>
+                        <span>Spent: {symbol}{record.variableExpenses.toFixed(0)}</span>
+                      </div>
+                    </div>
+                  ))}
                 </div>
+              )}
+
+              {monthlyRecords.length === 0 && (
+                <div className="text-center py-8 text-muted-foreground text-sm">
+                  Past months will appear here
+                </div>
+              )}
+            </>
+          )}
+
+          {ledgerView === 'weeks' && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="text-sm font-medium">This Month</div>
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => {
+                    setLedgerView('months')
+                    setSelectedWeekNum(null)
+                  }}
+                  className="text-xs text-primary font-medium"
+                >
+                  Back
+                </motion.button>
+              </div>
+
+              {budgetWeeks.map((w) => (
+                <motion.button
+                  key={w.weekNum}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => {
+                    setSelectedWeekNum(w.weekNum)
+                    setLedgerView('week_detail')
+                  }}
+                  className="w-full text-left p-4 rounded-lg border border-border bg-card"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium">Week {w.weekNum}</span>
+                    {w.net == null ? (
+                      <span className="text-muted-foreground tabular-nums">—</span>
+                    ) : (
+                      <span className={`font-bold tabular-nums ${w.net >= 0 ? 'text-primary' : 'text-destructive'}`}>
+                        {w.net >= 0 ? '+' : ''}{symbol}{w.net.toFixed(0)}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center justify-between text-xs text-muted-foreground mt-1">
+                    <span>Spent: {symbol}{w.spent.toFixed(0)}</span>
+                    <span>{w.transactions.length} tx</span>
+                  </div>
+                </motion.button>
               ))}
             </div>
           )}
 
-          {monthlyRecords.length === 0 && (
-            <div className="text-center py-8 text-muted-foreground text-sm">
-              Past months will appear here
+          {ledgerView === 'week_detail' && selectedWeekNum != null && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="text-sm font-medium">Week {selectedWeekNum}</div>
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setLedgerView('weeks')}
+                  className="text-xs text-primary font-medium"
+                >
+                  Back
+                </motion.button>
+              </div>
+              <TransactionList
+                transactions={(budgetWeeks.find((w) => w.weekNum === selectedWeekNum)?.transactions || []).slice().sort(
+                  (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+                )}
+                showDate
+                compact
+              />
             </div>
           )}
         </div>
       )}
-    </div>
+      </div>
+    </PullToRefresh>
   )
 }
 
