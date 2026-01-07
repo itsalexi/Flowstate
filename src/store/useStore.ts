@@ -93,7 +93,9 @@ interface FlowStateStore {
 
   // Actions
   addTransaction: (tx: Omit<Transaction, 'id'>) => void
+  updateTransaction: (id: string, tx: Partial<Transaction>) => void
   deleteTransaction: (id: string) => void
+  restoreTransaction: (tx: Transaction) => void
   toggleFavoriteTransaction: (id: string) => void
   
   addRecurringIncome: (item: Omit<RecurringItem, 'id'>) => void
@@ -138,10 +140,27 @@ export const useStore = create<FlowStateStore>()(
           transactions: [{ ...tx, id: generateId() }, ...state.transactions],
         })),
 
+      updateTransaction: (id, updates) =>
+        set((state) => ({
+          transactions: state.transactions.map((tx) =>
+            tx.id === id ? { ...tx, ...updates } : tx
+          ),
+        })),
+
       deleteTransaction: (id) =>
         set((state) => ({
           transactions: state.transactions.filter((tx) => tx.id !== id),
         })),
+
+      restoreTransaction: (tx) =>
+        set((state) => {
+          const exists = state.transactions.some((t) => t.id === tx.id)
+          if (exists) return state
+          const newTransactions = [...state.transactions, tx].sort(
+            (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+          )
+          return { transactions: newTransactions }
+        }),
 
       toggleFavoriteTransaction: (id) =>
         set((state) => ({

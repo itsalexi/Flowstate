@@ -230,6 +230,8 @@ export function useBudget() {
     return {
       // Core numbers
       fixedNet,
+      totalMonthlyIncome,
+      totalMonthlyExpenses,
       effectiveMonthlyBudget,
       weeklyBucket,
       baseDailyTarget,

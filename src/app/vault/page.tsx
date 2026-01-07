@@ -2,10 +2,13 @@
 
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, Trash2, DollarSign, CreditCard, X, Check } from 'lucide-react'
-import { Input } from '@/components/ui/input'
+import { Plus, DollarSign, CreditCard } from 'lucide-react'
 import { useStore, RecurringItem, Frequency, currencySymbols } from '@/store/useStore'
 import { useBudget } from '@/hooks/useBudget'
+import { VaultDrawer } from '@/components/VaultDrawer'
+import { SwipeableTransaction } from '@/components/SwipeableTransaction'
+import { toast } from '@/hooks/use-toast'
+import { ToastAction } from '@/components/ui/toast'
 
 const frequencyLabels: Record<Frequency, string> = {
   daily: '/day',
@@ -13,99 +16,15 @@ const frequencyLabels: Record<Frequency, string> = {
   monthly: '/month',
 }
 
-function InlineAddForm({ 
-  onSubmit, 
-  onCancel,
-  placeholder,
-}: { 
-  onSubmit: (item: Omit<RecurringItem, 'id'>) => void
-  onCancel: () => void
-  placeholder: string
-}) {
-  const [name, setName] = useState('')
-  const [amount, setAmount] = useState('')
-  const [frequency, setFrequency] = useState<Frequency>('monthly')
-
-  const handleSubmit = () => {
-    const numAmount = parseFloat(amount)
-    if (name.trim() && !isNaN(numAmount) && numAmount > 0) {
-      onSubmit({ name: name.trim(), amount: numAmount, frequency })
-      setName('')
-      setAmount('')
-      setFrequency('monthly')
-    }
-  }
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, height: 0 }}
-      animate={{ opacity: 1, height: 'auto' }}
-      exit={{ opacity: 0, height: 0 }}
-      className="overflow-hidden"
-    >
-      <div className="p-3 rounded-lg border border-primary/30 bg-primary/5 space-y-3">
-        <div className="flex gap-2">
-          <Input
-            placeholder={placeholder}
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="flex-1 h-9"
-            autoFocus
-          />
-          <Input
-            type="number"
-            step="0.01"
-            min="0.01"
-            placeholder="0.00"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            className="w-24 h-9"
-          />
-        </div>
-        <div className="flex items-center justify-between">
-          <div className="flex gap-1">
-            {(['daily', 'weekly', 'monthly'] as Frequency[]).map((f) => (
-              <button
-                key={f}
-                onClick={() => setFrequency(f)}
-                className={`px-2.5 py-1 text-xs rounded-md transition-colors ${
-                  frequency === f
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-muted/50 hover:bg-muted text-muted-foreground'
-                }`}
-              >
-                {f}
-              </button>
-            ))}
-          </div>
-          <div className="flex gap-1">
-            <button
-              onClick={onCancel}
-              className="p-1.5 rounded-md hover:bg-muted text-muted-foreground"
-            >
-              <X className="w-4 h-4" />
-            </button>
-            <button
-              onClick={handleSubmit}
-              disabled={!name.trim() || !amount}
-              className="p-1.5 rounded-md bg-primary text-primary-foreground disabled:opacity-50"
-            >
-              <Check className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-      </div>
-    </motion.div>
-  )
-}
-
 function RecurringItemList({
   items,
   onDelete,
+  onEdit,
   emptyMessage,
 }: {
   items: RecurringItem[]
-  onDelete: (id: string) => void
+  onDelete: (item: RecurringItem) => void
+  onEdit: (item: RecurringItem) => void
   emptyMessage: string
 }) {
   const { currency } = useStore()
@@ -120,32 +39,23 @@ function RecurringItemList({
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-1.5">
       <AnimatePresence mode="popLayout">
         {items.map((item) => (
-          <motion.div
+          <SwipeableTransaction
             key={item.id}
-            layout
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95, x: -20 }}
-            transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-            className="flex items-center justify-between p-3 rounded-lg border border-border"
+            onDelete={() => onDelete(item)}
+            onTap={() => onEdit(item)}
           >
-            <div>
-              <div className="font-medium text-sm">{item.name}</div>
-              <div className="text-xs text-muted-foreground tabular-nums">
-                {symbol}{item.amount.toFixed(2)}{frequencyLabels[item.frequency || 'monthly']}
+            <div className="flex items-center justify-between p-3 rounded-lg border border-border bg-card">
+              <div>
+                <div className="font-medium text-sm">{item.name}</div>
+                <div className="text-xs text-muted-foreground tabular-nums">
+                  {symbol}{item.amount.toFixed(0)}{frequencyLabels[item.frequency || 'monthly']}
+                </div>
               </div>
             </div>
-            <motion.button
-              whileTap={{ scale: 0.9 }}
-              onClick={() => onDelete(item.id)}
-              className="p-2 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-            >
-              <Trash2 className="w-4 h-4" />
-            </motion.button>
-          </motion.div>
+          </SwipeableTransaction>
         ))}
       </AnimatePresence>
     </div>
@@ -153,8 +63,9 @@ function RecurringItemList({
 }
 
 export default function VaultPage() {
-  const [showIncomeForm, setShowIncomeForm] = useState(false)
-  const [showExpenseForm, setShowExpenseForm] = useState(false)
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const [editingItem, setEditingItem] = useState<RecurringItem | null>(null)
+  const [editingType, setEditingType] = useState<'income' | 'expense'>('income')
   
   const { 
     recurringIncome, 
@@ -166,8 +77,34 @@ export default function VaultPage() {
     deleteRecurringExpense,
   } = useStore()
 
-  const { fixedNet, weeklyBucket, baseDailyTarget } = useBudget()
+  const { totalMonthlyIncome, totalMonthlyExpenses, fixedNet } = useBudget()
   const symbol = currencySymbols[currency]
+
+  const handleDeleteIncome = (item: RecurringItem) => {
+    deleteRecurringIncome(item.id)
+    toast({
+      title: 'Income deleted',
+      description: `${item.name} - ${symbol}${item.amount.toFixed(0)}`,
+      action: (
+        <ToastAction altText="Undo" onClick={() => addRecurringIncome({ name: item.name, amount: item.amount, frequency: item.frequency })}>
+          Undo
+        </ToastAction>
+      ),
+    })
+  }
+
+  const handleDeleteExpense = (item: RecurringItem) => {
+    deleteRecurringExpense(item.id)
+    toast({
+      title: 'Expense deleted',
+      description: `${item.name} - ${symbol}${item.amount.toFixed(0)}`,
+      action: (
+        <ToastAction altText="Undo" onClick={() => addRecurringExpense({ name: item.name, amount: item.amount, frequency: item.frequency })}>
+          Undo
+        </ToastAction>
+      ),
+    })
+  }
 
   return (
     <div className="p-4 space-y-6">
@@ -184,96 +121,81 @@ export default function VaultPage() {
           whileTap={{ scale: 0.98 }}
           className="p-3 rounded-lg border border-border bg-card text-center"
         >
-          <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Net/mo</div>
-          <div className="text-lg font-semibold tabular-nums">{symbol}{fixedNet.toFixed(0)}</div>
+          <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Income</div>
+          <div className="text-lg font-semibold tabular-nums text-primary">{symbol}{totalMonthlyIncome.toFixed(0)}</div>
         </motion.div>
         <motion.div 
           whileTap={{ scale: 0.98 }}
           className="p-3 rounded-lg border border-border bg-card text-center"
         >
-          <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Weekly</div>
-          <div className="text-lg font-semibold tabular-nums">{symbol}{weeklyBucket.toFixed(0)}</div>
+          <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Expenses</div>
+          <div className="text-lg font-semibold tabular-nums text-destructive">{symbol}{totalMonthlyExpenses.toFixed(0)}</div>
         </motion.div>
         <motion.div 
           whileTap={{ scale: 0.98 }}
           className="p-3 rounded-lg border border-border bg-card text-center"
         >
-          <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Daily</div>
-          <div className="text-lg font-semibold tabular-nums">{symbol}{baseDailyTarget.toFixed(0)}</div>
+          <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Net</div>
+          <div className={`text-lg font-semibold tabular-nums ${fixedNet < 0 ? 'text-destructive' : ''}`}>{symbol}{fixedNet.toFixed(0)}</div>
         </motion.div>
       </div>
 
+      {/* Add Button */}
+      <motion.button
+        whileTap={{ scale: 0.97 }}
+        onClick={() => setDrawerOpen(true)}
+        className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-primary text-primary-foreground rounded-lg font-medium"
+      >
+        <Plus className="w-5 h-5" />
+        Add Income or Expense
+      </motion.button>
+
       {/* Income Section */}
       <section className="space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <DollarSign className="w-4 h-4 text-primary" />
-            <h2 className="font-medium">Income</h2>
-          </div>
-          {!showIncomeForm && (
-            <motion.button
-              whileTap={{ scale: 0.95 }}
-              onClick={() => setShowIncomeForm(true)}
-              className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-md bg-muted/50 hover:bg-muted text-muted-foreground transition-colors"
-            >
-              <Plus className="w-3.5 h-3.5" /> Add
-            </motion.button>
-          )}
+        <div className="flex items-center gap-2">
+          <DollarSign className="w-4 h-4 text-primary" />
+          <h2 className="font-medium">Income</h2>
         </div>
-        <AnimatePresence>
-          {showIncomeForm && (
-            <InlineAddForm
-              placeholder="e.g., Salary"
-              onSubmit={(item) => {
-                addRecurringIncome(item)
-                setShowIncomeForm(false)
-              }}
-              onCancel={() => setShowIncomeForm(false)}
-            />
-          )}
-        </AnimatePresence>
         <RecurringItemList
           items={recurringIncome}
-          onDelete={deleteRecurringIncome}
+          onDelete={handleDeleteIncome}
+          onEdit={(item) => {
+            setEditingItem(item)
+            setEditingType('income')
+            setDrawerOpen(true)
+          }}
           emptyMessage="No income added yet"
         />
       </section>
 
       {/* Expenses Section */}
       <section className="space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <CreditCard className="w-4 h-4 text-muted-foreground" />
-            <h2 className="font-medium">Fixed Expenses</h2>
-          </div>
-          {!showExpenseForm && (
-            <motion.button
-              whileTap={{ scale: 0.95 }}
-              onClick={() => setShowExpenseForm(true)}
-              className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-md bg-muted/50 hover:bg-muted text-muted-foreground transition-colors"
-            >
-              <Plus className="w-3.5 h-3.5" /> Add
-            </motion.button>
-          )}
+        <div className="flex items-center gap-2">
+          <CreditCard className="w-4 h-4 text-muted-foreground" />
+          <h2 className="font-medium">Fixed Expenses</h2>
         </div>
-        <AnimatePresence>
-          {showExpenseForm && (
-            <InlineAddForm
-              placeholder="e.g., Rent, Netflix"
-              onSubmit={(item) => {
-                addRecurringExpense(item)
-                setShowExpenseForm(false)
-              }}
-              onCancel={() => setShowExpenseForm(false)}
-            />
-          )}
-        </AnimatePresence>
         <RecurringItemList
           items={recurringExpenses}
-          onDelete={deleteRecurringExpense}
+          onDelete={handleDeleteExpense}
+          onEdit={(item) => {
+            setEditingItem(item)
+            setEditingType('expense')
+            setDrawerOpen(true)
+          }}
           emptyMessage="No expenses added yet"
         />
       </section>
+
+      {/* Unified Drawer */}
+      <VaultDrawer
+        initialType={editingType}
+        item={editingItem}
+        open={drawerOpen}
+        onOpenChange={(open) => {
+          setDrawerOpen(open)
+          if (!open) setEditingItem(null)
+        }}
+      />
     </div>
   )
 }

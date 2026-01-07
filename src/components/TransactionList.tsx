@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { AnimatePresence } from 'framer-motion'
 import { 
   Utensils, 
@@ -13,6 +14,9 @@ import {
 import { Transaction, Category, useStore, currencySymbols } from '@/store/useStore'
 import { formatDate } from '@/hooks/useBudget'
 import { SwipeableTransaction } from './SwipeableTransaction'
+import { EditTransactionDrawer } from './EditTransactionDrawer'
+import { toast } from '@/hooks/use-toast'
+import { ToastAction } from '@/components/ui/toast'
 
 const categoryIcons: Record<Category, React.ReactNode> = {
   food: <Utensils className="w-4 h-4" />,
@@ -41,8 +45,22 @@ interface TransactionListProps {
 }
 
 export function TransactionList({ transactions, showDate = false, compact = false }: TransactionListProps) {
-  const { deleteTransaction, currency } = useStore()
+  const { deleteTransaction, restoreTransaction, currency } = useStore()
   const symbol = currencySymbols[currency]
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
+
+  const handleDelete = (tx: Transaction) => {
+    deleteTransaction(tx.id)
+    toast({
+      title: 'Transaction deleted',
+      description: `${tx.note || tx.category} - ${symbol}${Math.abs(tx.amount).toFixed(0)}`,
+      action: (
+        <ToastAction altText="Undo" onClick={() => restoreTransaction(tx)}>
+          Undo
+        </ToastAction>
+      ),
+    })
+  }
 
   if (transactions.length === 0) {
     return (
@@ -56,8 +74,10 @@ export function TransactionList({ transactions, showDate = false, compact = fals
     <div className="space-y-1.5">
       <AnimatePresence mode="popLayout">
         {transactions.map((tx) => (
-          <SwipeableTransaction key={tx.id} onDelete={() => deleteTransaction(tx.id)}>
-            <div className={`flex items-center gap-3 ${compact ? 'p-2.5' : 'p-3'} border border-border rounded-lg bg-card`}>
+          <SwipeableTransaction key={tx.id} onDelete={() => handleDelete(tx)} onTap={() => setEditingTransaction(tx)}>
+            <div 
+              className={`flex items-center gap-3 ${compact ? 'p-2.5' : 'p-3'} border border-border rounded-lg bg-card`}
+            >
               <div className={`${compact ? 'p-1.5' : 'p-2'} rounded-md ${categoryColors[tx.category]}`}>
                 {categoryIcons[tx.category]}
               </div>
@@ -72,13 +92,19 @@ export function TransactionList({ transactions, showDate = false, compact = fals
                   <div className="text-xs text-muted-foreground">{formatDate(tx.date)}</div>
                 )}
               </div>
-              <div className="font-semibold tabular-nums text-sm">
-                -{symbol}{tx.amount.toFixed(0)}
+              <div className={`font-semibold tabular-nums text-sm ${tx.amount < 0 ? 'text-primary' : ''}`}>
+                {tx.amount < 0 ? '+' : '-'}{symbol}{Math.abs(tx.amount).toFixed(0)}
               </div>
             </div>
           </SwipeableTransaction>
         ))}
       </AnimatePresence>
+
+      <EditTransactionDrawer
+        transaction={editingTransaction}
+        open={!!editingTransaction}
+        onOpenChange={(open) => !open && setEditingTransaction(null)}
+      />
     </div>
   )
 }

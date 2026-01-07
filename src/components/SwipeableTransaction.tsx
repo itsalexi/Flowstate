@@ -7,16 +7,22 @@ import { Trash2 } from 'lucide-react'
 interface SwipeableTransactionProps {
   children: React.ReactNode
   onDelete: () => void
+  onTap?: () => void
 }
 
-export function SwipeableTransaction({ children, onDelete }: SwipeableTransactionProps) {
+export function SwipeableTransaction({ children, onDelete, onTap }: SwipeableTransactionProps) {
   const [isDeleting, setIsDeleting] = useState(false)
   const constraintsRef = useRef(null)
+  const hasDragged = useRef(false)
   const x = useMotionValue(0)
   
   const deleteOpacity = useTransform(x, [-100, -60], [1, 0])
   const deleteScale = useTransform(x, [-100, -60], [1, 0.8])
   const backgroundOpacity = useTransform(x, [-100, 0], [1, 0])
+
+  const handleDragStart = () => {
+    hasDragged.current = true
+  }
 
   const handleDragEnd = (_: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
     if (info.offset.x < -80) {
@@ -24,6 +30,17 @@ export function SwipeableTransaction({ children, onDelete }: SwipeableTransactio
       setTimeout(() => {
         onDelete()
       }, 200)
+    }
+    // Reset after a delay to allow the drag to complete
+    setTimeout(() => {
+      hasDragged.current = false
+    }, 300)
+  }
+
+  const handleTap = () => {
+    // Only trigger tap if we haven't dragged
+    if (!hasDragged.current && onTap) {
+      onTap()
     }
   }
 
@@ -53,9 +70,11 @@ export function SwipeableTransaction({ children, onDelete }: SwipeableTransactio
         drag="x"
         dragConstraints={{ left: -100, right: 0 }}
         dragElastic={0.1}
+        onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
+        onTap={handleTap}
         style={{ x }}
-        className="relative bg-card cursor-grab active:cursor-grabbing"
+        className="relative bg-card"
         transition={{ type: 'tween', duration: 0.2, ease: [0.25, 1, 0.5, 1] }}
       >
         {children}
