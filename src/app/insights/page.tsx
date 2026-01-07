@@ -2,12 +2,10 @@
 
 import { useState, useMemo, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { Search, List, BookOpen } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { TransactionList } from '@/components/TransactionList'
-import { PullToRefresh } from '@/components/PullToRefresh'
 import { useStore, Category, currencySymbols } from '@/store/useStore'
 import { useBudget, groupTransactionsByWeek } from '@/hooks/useBudget'
 
@@ -24,7 +22,6 @@ const categoryLabels: Record<Category, string> = {
 type ViewMode = 'history' | 'ledger'
 
 function InsightsContent() {
-  const router = useRouter()
   const searchParams = useSearchParams()
   const [viewMode, setViewMode] = useState<ViewMode>('history')
   const [searchQuery, setSearchQuery] = useState('')
@@ -71,8 +68,7 @@ function InsightsContent() {
   const totalSpent = filteredTransactions.reduce((sum, tx) => sum + Math.max(0, tx.amount), 0)
 
   return (
-    <PullToRefresh onRefresh={() => router.refresh()}>
-      <div className="p-4 space-y-4">
+    <div className="p-4 space-y-4">
       <div className="flex items-center justify-between pt-2">
         <h1 className="text-lg font-semibold tracking-tight">Insights</h1>
         
@@ -310,8 +306,7 @@ function InsightsContent() {
           )}
         </div>
       )}
-      </div>
-    </PullToRefresh>
+    </div>
   )
 }
 

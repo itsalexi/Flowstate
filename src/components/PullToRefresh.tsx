@@ -12,7 +12,7 @@ type Props = {
 export function PullToRefresh({
   onRefresh,
   children,
-  thresholdPx = 70,
+  thresholdPx = 150, // Increased threshold default
   maxPullPx = 120,
 }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -27,12 +27,15 @@ export function PullToRefresh({
     if (!el) return
 
     const isAtTop = () => el.scrollTop <= 0
+    const shouldStart = (clientY: number) => clientY < 50
 
     const onTouchStart = (e: TouchEvent) => {
       if (isRefreshing) return
       if (!isAtTop()) return
       if (e.touches.length !== 1) return
-      startYRef.current = e.touches[0].clientY
+      const y = e.touches[0].clientY
+      if (!shouldStart(y)) return
+      startYRef.current = y
       pullingRef.current = true
       setPullPx(0)
     }
@@ -44,7 +47,7 @@ export function PullToRefresh({
       if (startYRef.current == null) return
 
       const dy = e.touches[0].clientY - startYRef.current
-      if (dy <= 0) {
+      if (dy <= 12) {
         setPullPx(0)
         return
       }
@@ -92,7 +95,7 @@ export function PullToRefresh({
   const progress = Math.min(1, pullPx / thresholdPx)
 
   return (
-    <div ref={containerRef} className="h-dvh overflow-y-auto overscroll-contain">
+    <div ref={containerRef} className="h-dvh overflow-y-auto overscroll-contain" style={{ WebkitOverflowScrolling: 'touch' }}>
       <div
         className="sticky top-0 z-10"
         style={{ height: pullPx }}
@@ -107,9 +110,7 @@ export function PullToRefresh({
         </div>
       </div>
 
-      <div style={{ transform: pullPx ? `translateY(${pullPx}px)` : undefined }}>
-        {children}
-      </div>
+      {children}
     </div>
   )
 }
