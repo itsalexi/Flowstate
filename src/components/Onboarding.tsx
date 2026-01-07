@@ -80,7 +80,7 @@ export function Onboarding() {
   }
 
   return (
-    <div className="fixed inset-0 flex flex-col p-6 bg-background z-50">
+    <div className="fixed inset-0 flex flex-col p-6 pt-[calc(env(safe-area-inset-top)+1.5rem)] bg-background z-50">
       {/* Progress */}
       <div className="flex gap-1.5 mb-8">
         {Array.from({ length: totalSteps }).map((_, i) => (
